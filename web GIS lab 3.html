@@ -1,0 +1,557 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGIS Lab 03 | Islamabad Hospital Navigation</title>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+:root {
+  --navy: #123c60;
+  --teal: #0796a5;
+  --blue: #1688df;
+  --bg: #eaf6fc;
+  --text: #173650;
+  --muted: #71869a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Arial, sans-serif;
+  color: var(--text);
+  background: linear-gradient(135deg,#e4f5fb,#f6fbff);
+}
+
+header {
+  min-height: 115px;
+  background: linear-gradient(110deg,#123c60,#086c93);
+  color: white;
+  padding: 24px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+header h1 {
+  font-size: 27px;
+  margin: 0;
+}
+
+header p {
+  margin: 8px 0 0;
+  opacity: .85;
+}
+
+#clock {
+  font-size: 14px;
+  text-align: right;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0,1fr) 260px;
+  gap: 16px;
+  padding: 16px;
+}
+
+.card {
+  background: white;
+  border: 1px solid #dcebf3;
+  border-radius: 17px;
+  padding: 19px;
+  box-shadow: 0 5px 20px #184f7510;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 19px;
+}
+
+.subtitle {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.search {
+  width: 100%;
+  padding: 13px;
+  margin: 16px 0;
+  border: 1px solid #d9e8f1;
+  border-radius: 10px;
+  outline-color: var(--teal);
+}
+
+.hospital {
+  width: 100%;
+  padding: 17px;
+  margin-bottom: 12px;
+  border: 1px solid #dbeaf1;
+  border-radius: 12px;
+  background: #eef6fa;
+  text-align: left;
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text);
+  cursor: pointer;
+  transition: .2s;
+}
+
+.hospital small {
+  display: block;
+  margin-top: 7px;
+  font-weight: normal;
+}
+
+.hospital:hover,
+.hospital.active {
+  color: white;
+  background: linear-gradient(110deg,#087e96,#0ba4ac);
+  transform: translateY(-2px);
+}
+
+.primary {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(110deg,#087e96,#0ba4ac);
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.primary:hover { filter: brightness(.93); }
+
+.center { min-width: 0; }
+
+#map {
+  height: 64vh;
+  min-height: 450px;
+  border-radius: 17px;
+  border: 1px solid #d5e7f1;
+  z-index: 0;
+  background: #dcebf3;
+}
+
+.route-card { margin-top: 15px; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3,1fr);
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.stat {
+  background: #edf7fc;
+  border-radius: 12px;
+  padding: 16px 8px;
+  text-align: center;
+}
+
+.stat span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.stat strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+.right {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.detail {
+  font-size: 14px;
+  line-height: 2;
+}
+
+.detail b { color: var(--navy); }
+
+#status {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+footer {
+  padding: 16px;
+  text-align: center;
+  color: #73899b;
+  font-size: 12px;
+}
+
+@media(max-width:1050px) {
+  .layout {
+    grid-template-columns: 230px minmax(0,1fr);
+  }
+  .right { grid-column: 1/-1; }
+}
+
+@media(max-width:700px) {
+  header { flex-direction: column; align-items: flex-start; }
+  .layout { display: block; }
+  .card, .center { margin-bottom: 15px; }
+  #map { height: 450px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div>
+    <h1>✚ Interactive WebGIS Navigation Dashboard</h1>
+    <p>Islamabad Hospital Navigation | Lab 03</p>
+  </div>
+  <div id="clock"></div>
+</header>
+
+<main class="layout">
+
+<!-- LEFT SIDEBAR -->
+<aside class="card">
+  <h2>🏥 Hospitals</h2>
+  <p class="subtitle">Select a hospital to view its location</p>
+
+  <input class="search" id="search"
+    placeholder="Search hospitals..."
+    oninput="filterHospitals()">
+
+  <button class="hospital" id="btn-pims"
+    onclick="selectHospital('pims')">
+    ✚ PIMS Hospital
+    <small>G-8/3, Islamabad</small>
+  </button>
+
+  <button class="hospital" id="btn-shifa"
+    onclick="selectHospital('shifa')">
+    ✚ Shifa International Hospital
+    <small>H-8/4, Islamabad</small>
+  </button>
+
+  <button class="primary" onclick="getMyLocation()">
+    ◎ Use My Location
+  </button>
+
+  <p class="subtitle">
+    Allow browser location permission for navigation.
+  </p>
+</aside>
+
+<!-- CENTER MAP -->
+<section class="center">
+  <div id="map"></div>
+
+  <div class="card route-card">
+    <h2>↗ Route Information</h2>
+    <p id="status">Select a hospital to begin navigation.</p>
+
+    <div class="stats">
+      <div class="stat">
+        <span>Distance</span>
+        <strong id="distance">—</strong>
+      </div>
+      <div class="stat">
+        <span>Estimated Time</span>
+        <strong id="duration">—</strong>
+      </div>
+      <div class="stat">
+        <span>Travel Mode</span>
+        <strong>Driving</strong>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RIGHT SIDEBAR -->
+<aside class="right">
+
+  <div class="card">
+    <h2>👤 Student Information</h2>
+    <div class="detail">
+      <b>Name:</b> Aliza Ali<br>
+      <b>ARID:</b> 24-ARID-2200<br>
+      <b>City:</b> Islamabad<br>
+      <b>Category:</b> Hospital
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📍 Selected Hospital</h2>
+    <p id="hospitalName">No hospital selected</p>
+    <p class="subtitle" id="hospitalAddress">—</p>
+    <button class="primary" onclick="showRoute()">
+      ➤ Show Route
+    </button>
+  </div>
+
+  <div class="card">
+    <h2>About Islamabad</h2>
+    <p class="subtitle">
+      Islamabad is the capital of Pakistan.
+      It is famous for Margalla Hills,
+      Faisal Mosque, green spaces and
+      modern urban planning.
+    </p>
+  </div>
+
+</aside>
+</main>
+
+<footer>
+  WebGIS Development Lab 03 | Leaflet.js | OpenStreetMap
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+
+// HOSPITAL DATA
+// Approximate coordinates; verify before final submission.
+const hospitals = {
+  pims: {
+    name: "PIMS Hospital",
+    address: "G-8/3, Islamabad",
+    coords: [33.7067,73.0503]
+  },
+  shifa: {
+    name: "Shifa International Hospital",
+    address: "H-8/4, Islamabad",
+    coords: [33.7156,73.0640]
+  }
+};
+
+// CREATE MAP
+const map = L.map("map").setView([33.6844,73.0479],12);
+
+// ESRI STREET MAP
+const esri = L.tileLayer(
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+  {
+    maxZoom: 19,
+    attribution: "Tiles &copy; Esri"
+  }
+);
+
+// BACKUP OPENSTREETMAP HOT
+const osmHot = L.tileLayer(
+  "https://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+  {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors, HOT"
+  }
+);
+
+esri.addTo(map);
+
+L.control.layers({
+  "Esri Street Map": esri,
+  "OpenStreetMap HOT": osmHot
+}).addTo(map);
+
+let selectedKey = null;
+let userCoords = null;
+let userMarker = null;
+let routeLayer = null;
+
+const markers = {};
+
+// ADD HOSPITAL MARKERS
+Object.entries(hospitals).forEach(([key,h]) => {
+  markers[key] = L.marker(h.coords)
+    .addTo(map)
+    .bindPopup("<b>"+h.name+"</b><br>"+h.address);
+});
+
+function setStatus(message) {
+  document.getElementById("status").textContent = message;
+}
+
+function clearRoute() {
+  if(routeLayer) {
+    map.removeLayer(routeLayer);
+    routeLayer = null;
+  }
+
+  document.getElementById("distance").textContent = "—";
+  document.getElementById("duration").textContent = "—";
+}
+
+// SELECT HOSPITAL
+function selectHospital(key) {
+  selectedKey = key;
+  const h = hospitals[key];
+
+  document.querySelectorAll(".hospital").forEach(btn => {
+    btn.classList.remove("active");
+  });
+
+  document.getElementById("btn-"+key)
+    .classList.add("active");
+
+  document.getElementById("hospitalName")
+    .textContent = h.name;
+
+  document.getElementById("hospitalAddress")
+    .textContent = h.address;
+
+  clearRoute();
+  markers[key].openPopup();
+  map.setView(h.coords,14);
+
+  setStatus("Hospital selected. Click Show Route.");
+}
+
+// SEARCH
+function filterHospitals() {
+  const q = document.getElementById("search")
+    .value.toLowerCase();
+
+  Object.entries(hospitals).forEach(([key,h]) => {
+    document.getElementById("btn-"+key).style.display =
+      h.name.toLowerCase().includes(q)
+      ? "block" : "none";
+  });
+}
+
+// LIVE LOCATION
+function getMyLocation() {
+  if(!navigator.geolocation) {
+    setStatus("Browser does not support geolocation.");
+    return;
+  }
+
+  setStatus("Finding your location...");
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      userCoords = [
+        position.coords.latitude,
+        position.coords.longitude
+      ];
+
+      if(userMarker) map.removeLayer(userMarker);
+
+      userMarker = L.circleMarker(userCoords,{
+        radius: 9,
+        color: "white",
+        weight: 3,
+        fillColor: "#1688df",
+        fillOpacity: 1
+      }).addTo(map).bindPopup("Your Location");
+
+      map.setView(userCoords,14);
+      clearRoute();
+      setStatus("Location found. Click Show Route.");
+    },
+    error => {
+      setStatus("Location error: "+error.message+
+        ". Use Live Server and allow location access.");
+    },
+    {
+      enableHighAccuracy:true,
+      timeout:15000
+    }
+  );
+}
+
+// ROUTING
+async function showRoute() {
+  if(!selectedKey) {
+    setStatus("Select a hospital first.");
+    return;
+  }
+
+  if(!userCoords) {
+    setStatus("Click Use My Location first.");
+    return;
+  }
+
+  clearRoute();
+  setStatus("Calculating route...");
+
+  const dest = hospitals[selectedKey].coords;
+
+  const url =
+    "https://router.project-osrm.org/route/v1/driving/" +
+    userCoords[1]+","+userCoords[0]+";" +
+    dest[1]+","+dest[0] +
+    "?overview=full&geometries=geojson";
+
+  try {
+    const response = await fetch(url);
+
+    if(!response.ok) {
+      throw new Error("Routing server unavailable");
+    }
+
+    const data = await response.json();
+
+    if(data.code !== "Ok" || !data.routes?.length) {
+      throw new Error("No route found");
+    }
+
+    const route = data.routes[0];
+
+    const points = route.geometry.coordinates.map(
+      p => [p[1],p[0]]
+    );
+
+    routeLayer = L.polyline(points,{
+      color:"#1688df",
+      weight:6,
+      opacity:.9
+    }).addTo(map);
+
+    map.fitBounds(routeLayer.getBounds(),{
+      padding:[35,35]
+    });
+
+    document.getElementById("distance").textContent =
+      (route.distance/1000).toFixed(1)+" km";
+
+    document.getElementById("duration").textContent =
+      Math.round(route.duration/60)+" min";
+
+    setStatus("Route calculated successfully.");
+
+  } catch(error) {
+    setStatus("Routing failed: "+error.message);
+  }
+}
+
+// CLOCK
+function updateClock() {
+  document.getElementById("clock").textContent =
+    new Date().toLocaleString("en-PK",{
+      timeZone:"Asia/Karachi",
+      weekday:"long",
+      day:"numeric",
+      month:"long",
+      hour:"2-digit",
+      minute:"2-digit"
+    });
+}
+
+updateClock();
+setInterval(updateClock,30000);
+
+</script>
+</body>
+</html>
